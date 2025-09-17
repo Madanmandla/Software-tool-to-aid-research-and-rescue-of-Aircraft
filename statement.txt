@@ -1,0 +1,116 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+
+
+file_names = ["flight1.csv", "flight2.csv", "flight3.csv", "flight4.csv", "flight5.csv"]
+data = {
+    'Flight ID': [f'ID{i}' for i in range(50)],
+    'Aircraft Type': [f'Type{i%3}' for i in range(50)],
+    'REGION': [f'Region{i%5}' for i in range(50)],
+    'Latitude Min': np.random.uniform(-90, 90, 50),
+    'Latitude Max': np.random.uniform(-90, 90, 50),
+    'Longitude Min': np.random.uniform(-180, 180, 50),
+    'Longitude Max': np.random.uniform(-180, 180, 50),
+    'Altitude Min': np.random.uniform(0, 30000, 50),
+    'Altitude Max': np.random.uniform(0, 40000, 50),
+    'Signal Min': np.random.uniform(10, 50, 50),
+    'Signal Max': np.random.uniform(20, 60, 50),
+    'Timestamp': pd.to_datetime(pd.date_range(start='2020-01-01', periods=50, freq='D'))
+}
+dummy_df = pd.DataFrame(data)
+
+for file_name in file_names:
+    if not os.path.exists(file_name):
+        dummy_df.to_csv(file_name, index=False)
+
+
+F1 = pd.read_csv("flight1.csv")
+F2 = pd.read_csv("flight2.csv")
+F3 = pd.read_csv("flight3.csv")
+F4 = pd.read_csv("flight4.csv")
+F5 = pd.read_csv("flight5.csv")
+
+
+df = pd.concat([F1, F2, F3, F4, F5], ignore_index=True)
+
+
+df['REGION'] = df['REGION'].str.upper()
+
+
+df.sort_values(by="Timestamp", inplace=True, ascending=False, ignore_index=True)
+
+
+df.dropna(axis=0, inplace=True)
+
+
+df.reset_index(inplace=True, drop=True)
+
+
+print(df.head(10))
+df.info()
+
+
+df['Latitude_Mean'] = (df['Latitude Min'] + df['Latitude Max']) / 2
+df['Longitude_Mean'] = (df['Longitude Min'] + df['Longitude Max']) / 2
+df['Altitude_Mean'] = (df['Altitude Min'] + df['Altitude Max']) / 2
+df['Signal_Strength_Mean'] = (df['Signal Min'] + df['Signal Max']) / 2
+
+
+df = df[['Flight ID', 'Aircraft Type', 'REGION',
+         'Latitude Min','Latitude Max','Latitude_Mean',
+         'Longitude Min','Longitude Max','Longitude_Mean',
+         'Altitude Min','Altitude Max','Altitude_Mean',
+         'Signal Min','Signal Max','Signal_Strength_Mean',
+         'Timestamp']]
+
+
+plt.rcParams['figure.figsize'] = 14,6
+top_regions = df.groupby('REGION')['Altitude_Mean'].mean().sort_values(ascending=False).to_frame().reset_index()
+top_10_regions = top_regions.head(10)
+
+sns.catplot(data=top_10_regions, x='Altitude_Mean', y='REGION', kind='point')
+plt.title('Top 10 Regions with Highest Mean Altitude of Distress Signals')
+plt.xlabel('Mean Altitude (ft)')
+plt.ylabel('Regions')
+plt.show()
+
+
+ax = sns.heatmap(df[['Latitude_Mean','Longitude_Mean','Signal_Strength_Mean']].corr(),
+            annot=True,
+            cmap="coolwarm",
+            annot_kws={"size": 12}
+           )
+plt.title("Correlation between Location & Signal Strength", fontsize=16)
+plt.show()
+
+
+df['Year'] = pd.to_datetime(df['Timestamp']).dt.year
+a = df.groupby('Year')['Signal_Strength_Mean'].mean().plot(kind='line', marker='o')
+plt.xlabel("Year", fontsize=14)
+plt.ylabel("Average Signal Strength", fontsize=14)
+plt.title("Trend of Signal Strength over Years", fontsize=16)
+plt.show()
+
+
+ax = df.groupby('REGION')['Signal_Strength_Mean'].mean().sort_values().plot(kind='barh', figsize=(10,6))
+plt.xlabel("Average Signal Strength", fontsize=14)
+plt.ylabel("Regions", fontsize=14)
+plt.title("Mean Signal Strength by Region", fontsize=16)
+plt.show()
+
+df['Signal_Status'] = df['Signal_Strength_Mean'].apply(lambda x: 'Critical' if x < 30 else 'Stable')
+
+# Visualization of SAR readiness by region
+df.groupby(['REGION', 'Signal_Status']).size().unstack().plot(
+    kind='barh',
+    stacked=True,
+    figsize=(10,6),
+    color={'Stable':'green','Critical':'red'}
+)
+plt.xlabel("Number of Records")
+plt.ylabel("Regions")
+plt.title("Stable vs Critical Signal Status by Region")
+plt.show()
